@@ -111,9 +111,12 @@ document.addEventListener("DOMContentLoaded", function () {
     // ✅ Protection contre les appels multiples
     function loadUnlockData() {
         if (isLoading) return Promise.resolve();
-        
+
         isLoading = true;
-        return fetch("/plugins/ctfd-unlock-info/api/unlock_info_all")
+        const urlRoot = (window.CTFd && window.CTFd.config && window.CTFd.config.urlRoot)
+            ? window.CTFd.config.urlRoot.replace(/\/$/, "")
+            : "";
+        return fetch(`${urlRoot}/plugins/ctfd-unlock-info/api/unlock_info_all`)
             .then(res => res.json())
             .then(data => {
                 unlockMap = data;
@@ -150,7 +153,7 @@ document.addEventListener("DOMContentLoaded", function () {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             const currentCount = document.querySelectorAll(".challenge-button").length;
-            
+
             if (currentCount > lastChallengeCount) {
                 lastChallengeCount = currentCount;
                 isDataLoaded = false;
@@ -158,7 +161,7 @@ document.addEventListener("DOMContentLoaded", function () {
             } else {
                 processButtons();
             }
-            
+
             lastChallengeCount = currentCount;
         }, 300); // ✅ Attend 300ms sans changement
     });

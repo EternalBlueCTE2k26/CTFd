@@ -1,15 +1,19 @@
-from flask import Blueprint, render_template, jsonify
+import json
+import os
+
+from flask import Blueprint, render_template, jsonify, send_from_directory
 from CTFd.plugins import (
-    register_plugin_assets_directory,
     register_plugin_script
 )
 from CTFd.models import Challenges, Solves
 from CTFd.utils.user import get_current_user, get_current_team
 from CTFd.utils.decorators import authed_only,admins_only
-import json
 
 
 def load(app):
+    plugin_root = os.path.dirname(__file__)
+    assets_root = os.path.join(plugin_root, 'assets')
+
     unlock_info_bp = Blueprint(
         'ctfd_unlock_info',
         __name__,
@@ -35,22 +39,22 @@ def load(app):
         solved_ids = {s.challenge_id for s in solves}
 
         unlocked_by_map = {}
-        
+
         # Tous les challenges non cachés
         all_challenges = Challenges.query.filter(Challenges.state != 'hidden').all()
-        
+
         # Fonction pour vérifier si un challenge est déverrouillé
         def is_challenge_unlocked(challenge):
             # Si déjà résolu, il est forcément visible
             if challenge.id in solved_ids:
                 return True
-                
+
             # Vérifie les requirements
             try:
                 reqs = None
                 if challenge.requirements is None:
                     return True  # Pas de requirements = déverrouillé
-                    
+
                 if isinstance(challenge.requirements, str):
                     if not challenge.requirements.strip():
                         return True
@@ -62,31 +66,31 @@ def load(app):
                     req_ids = reqs['prerequisites']
                     if not isinstance(req_ids, list) or not req_ids:
                         return True
-                    
+
                     # Déverrouillé seulement si TOUTES les dépendances sont résolues
                     return all(req_id in solved_ids for req_id in req_ids)
                 else:
                     return True  # Pas de prerequisites = déverrouillé
-                    
+
             except Exception:
                 return True  # En cas d'erreur, on considère comme déverrouillé
-        
+
         # Détermine quels challenges sont réellement visibles à l'écran
         visible_challenges = []
         for challenge in all_challenges:
             if is_challenge_unlocked(challenge):
                 visible_challenges.append(challenge)
-        
+
         visible_challenge_ids = {c.id for c in visible_challenges}
 
         # Maintenant, on ne traite QUE les challenges visibles
         for challenge in visible_challenges:
             try:
                 reqs = None
-                
+
                 if challenge.requirements is None:
                     continue
-                    
+
                 if isinstance(challenge.requirements, str):
                     if challenge.requirements.strip():
                         reqs = json.loads(challenge.requirements)
@@ -97,24 +101,24 @@ def load(app):
 
                 if isinstance(reqs, dict) and 'prerequisites' in reqs:
                     req_ids = reqs['prerequisites']
-                    
+
                     if not isinstance(req_ids, list) or not req_ids:
                         continue
-                    
+
                     # SÉCURITÉ : Ne garde que les requirements de challenges VISIBLES
-                    visible_req_ids = [int(req_id) for req_id in req_ids 
+                    visible_req_ids = [int(req_id) for req_id in req_ids
                         if isinstance(req_id, int) and req_id in visible_challenge_ids]
-                    
+
                     if not visible_req_ids:
                         continue
-                        
+
                     # Ne récupère que les noms des challenges visibles
                     req_challs = [c for c in visible_challenges if c.id in visible_req_ids]
                     req_names = [c.name for c in req_challs if c.name]
-                    
+
                     if req_names:
                         unlocked_by_map[str(challenge.id)] = req_names
-                            
+
             except Exception as e:
                 continue
 
@@ -125,6 +129,9 @@ def load(app):
     def admin_unlock_info():
         return render_template('admin.html')
 
+    @app.route('/plugins/ctfd-unlock-info/assets/<path:path>')
+    def unlock_info_assets(path):
+        return send_from_directory(assets_root, path)
+
     app.register_blueprint(unlock_info_bp)
-    register_plugin_assets_directory(app, base_path='/plugins/ctfd-unlock-info/assets')
     register_plugin_script("/plugins/ctfd-unlock-info/assets/inject-unlock-info.js")
