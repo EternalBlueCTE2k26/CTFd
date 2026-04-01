@@ -9,14 +9,15 @@ class _PluginWrapper:
     @property
     def scripts(self):
         application_root = current_app.config.get("APPLICATION_ROOT")
-        subdir = application_root != "/"
+        normalized_root = (application_root or "").rstrip("/")
+        subdir = normalized_root != ""
         scripts = []
         for script in get_registered_scripts():
             if script.startswith("http"):
                 scripts.append(f'<script defer src="{script}"></script>')
             elif subdir:
                 scripts.append(
-                    f'<script defer src="{application_root}/{script}"></script>'
+                    f'<script defer src="{normalized_root}/{script.lstrip("/")}"></script>'
                 )
             else:
                 scripts.append(f'<script defer src="{script}"></script>')
@@ -25,7 +26,8 @@ class _PluginWrapper:
     @property
     def styles(self):
         application_root = current_app.config.get("APPLICATION_ROOT")
-        subdir = application_root != "/"
+        normalized_root = (application_root or "").rstrip("/")
+        subdir = normalized_root != ""
         _styles = []
         for stylesheet in get_registered_stylesheets():
             if stylesheet.startswith("http"):
@@ -34,7 +36,7 @@ class _PluginWrapper:
                 )
             elif subdir:
                 _styles.append(
-                    f'<link rel="stylesheet" type="text/css" href="{application_root}/{stylesheet}">'
+                    f'<link rel="stylesheet" type="text/css" href="{normalized_root}/{stylesheet.lstrip("/")}">'
                 )
             else:
                 _styles.append(
